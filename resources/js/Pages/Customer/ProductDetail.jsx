@@ -57,7 +57,7 @@ export default function ProductDetail({ shop, product, relatedProducts }) {
         </Link>
 
         <h2 className="text-xl font-bold text-[#182033] leading-snug">
-          {{product}.name}
+          {product.name}
         </h2>
 
         <div className="flex items-baseline gap-2 mt-2 pb-4 border-b border-gray-100">

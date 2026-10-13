@@ -189,7 +189,7 @@ export default function ShowInquiry({ shop, inquiry }) {
             <div className="space-y-3">
               {inquiry.histories?.map((h) => (
                 <div key={h.id} className="text-xs border-l-2 border-[#3F51D7] pl-3 py-0.5">
-                  <div className="font-bold text-[#182033] capitalize">{{to_status: h.to_status}.to_status}</div>
+                  <div className="font-bold text-[#182033] capitalize">{h.to_status}</div>
                   <div className="text-[11px] text-[#667085]">{h.comment || 'Status change'}</div>
                   <div className="text-[10px] text-gray-400 mt-0.5">{new Date(h.created_at).toLocaleString()}</div>
                 </div>

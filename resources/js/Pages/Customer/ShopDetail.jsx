@@ -82,7 +82,7 @@ export default function ShopDetail({ shop, products }) {
               </Link>
               <div className="p-3 flex-1 flex flex-col justify-between">
                 <Link href={`/shops/${shop.slug}/products/${product.slug}`} className="text-xs font-semibold text-[#182033] line-clamp-2">
-                  {{product}.name}
+                  {product.name}
                 </Link>
                 <div className="mt-2.5 pt-2 border-t border-gray-50 flex items-center justify-between">
                   <span className="text-xs font-bold text-[#182033]">

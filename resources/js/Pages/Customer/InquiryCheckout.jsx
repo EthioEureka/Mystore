@@ -149,7 +149,7 @@ export default function InquiryCheckout({ shop, product, selectedVariant, initia
                       : 'border-[#E6E8EF] text-[#182033] hover:bg-gray-50'
                   }`}
                 >
-                  {{telegram: 'Telegram', phone: 'Phone', either: 'Either'}[method]}
+                  {method === 'telegram' ? 'Telegram' : method === 'phone' ? 'Phone' : 'Either'}
                 </button>
               ))}
             </div>
