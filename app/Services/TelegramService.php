@@ -118,6 +118,87 @@ class TelegramService
     }
 
     /**
+     * Set the Telegram Bot Webhook
+     */
+    public function setWebhook(string $url, ?string $secretToken = null): array
+    {
+        if (empty($this->botToken)) {
+            return ['ok' => false, 'error' => 'TELEGRAM_BOT_TOKEN is not configured'];
+        }
+
+        $params = [
+            'url' => $url,
+            'allowed_updates' => json_encode(['message', 'callback_query']),
+        ];
+
+        if ($secretToken) {
+            $params['secret_token'] = $secretToken;
+        }
+
+        return $this->executeApiCall('setWebhook', $params);
+    }
+
+    /**
+     * Delete the Telegram Bot Webhook
+     */
+    public function deleteWebhook(): array
+    {
+        if (empty($this->botToken)) {
+            return ['ok' => false, 'error' => 'TELEGRAM_BOT_TOKEN is not configured'];
+        }
+
+        return $this->executeApiCall('deleteWebhook');
+    }
+
+    /**
+     * Test bot token and get bot details
+     */
+    public function getMe(): array
+    {
+        if (empty($this->botToken)) {
+            return ['ok' => false, 'error' => 'TELEGRAM_BOT_TOKEN is not configured'];
+        }
+
+        return $this->executeApiCall('getMe');
+    }
+
+    /**
+     * Get current Webhook info
+     */
+    public function getWebhookInfo(): array
+    {
+        if (empty($this->botToken)) {
+            return ['ok' => false, 'error' => 'TELEGRAM_BOT_TOKEN is not configured'];
+        }
+
+        return $this->executeApiCall('getWebhookInfo');
+    }
+
+    protected function executeApiCall(string $method, array $params = []): array
+    {
+        $url = "https://api.telegram.org/bot{$this->botToken}/{$method}";
+
+        try {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            if (!empty($params)) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+            }
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            $decoded = json_decode($response, true);
+            return $decoded ?: ['ok' => false, 'error' => $response, 'http_code' => $httpCode];
+        } catch (\Throwable $e) {
+            Log::error("Telegram {$method} exception: {$e->getMessage()}");
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Format a clean telegram user link or mention
      */
     public function formatUserContactUrl(?string $username, ?int $telegramId = null): ?string

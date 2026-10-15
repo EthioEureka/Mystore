@@ -19,6 +19,18 @@ export default function InquiryCheckout({ shop, product, selectedVariant, initia
     acknowledges_offline_sale: true,
   });
 
+  React.useEffect(() => {
+    if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+      const u = window.Telegram.WebApp.initDataUnsafe.user;
+      if (!data.customer_name && (u.first_name || u.last_name)) {
+        setData('customer_name', `${u.first_name || ''} ${u.last_name || ''}`.trim());
+      }
+      if (!data.customer_telegram_username && u.username) {
+        setData('customer_telegram_username', u.username);
+      }
+    }
+  }, []);
+
   const estimatedTotal = (unitPrice * data.quantity).toFixed(2);
 
   function handleSubmit(e) {

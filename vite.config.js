@@ -7,7 +7,7 @@ import path from 'path';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.jsx'],
+            input: ["resources/css/app.css", "resources/js/app.jsx"],
             refresh: true,
         }),
         react(),
@@ -15,12 +15,21 @@ export default defineConfig({
     ],
     resolve: {
         alias: {
-            '@': path.resolve(__dirname, './resources/js'),
+            "@": path.resolve(__dirname, "./resources/js"),
         },
     },
     server: {
         watch: {
-            ignored: ['**/storage/framework/views/**'],
+            ignored: ["**/storage/framework/views/**"],
+        },
+        host: "0.0.0.0",
+        port: 5173,
+        strictPort: true,
+        hmr: {
+            host: "10.157.94.105",
+        },
+        cors: {
+            origin: "http://10.157.94.105:8000",
         },
     },
 });

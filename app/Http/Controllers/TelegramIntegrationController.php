@@ -81,6 +81,15 @@ class TelegramIntegrationController extends Controller
      */
     public function webhook(Request $request): JsonResponse
     {
+        $secret = config('services.telegram.webhook_secret');
+        if (!empty($secret)) {
+            $headerSecret = $request->header('X-Telegram-Bot-Api-Secret-Token');
+            if ($headerSecret !== $secret) {
+                Log::warning('Telegram webhook secret token mismatch');
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+        }
+
         $update = $request->all();
         Log::info('Telegram update received:', ['update' => $update]);
 
@@ -91,10 +100,35 @@ class TelegramIntegrationController extends Controller
 
             if (str_starts_with($text, '/start')) {
                 $this->handleStartCommand($chatId, $text, $sender);
+            } elseif (str_starts_with($text, '/help')) {
+                $this->handleHelpCommand($chatId);
             }
         }
 
         return response()->json(['status' => 'ok']);
+    }
+
+    protected function handleHelpCommand(int|string $chatId): void
+    {
+        $appUrl = config('app.url');
+        $helpText = "<b>Telegram Shop Marketplace Help</b> ℹ️\n\n"
+            . "• <b>Browse shops & products</b>: Tap 'Open Marketplace' to launch the Mini App.\n"
+            . "• <b>Submit inquiries</b>: Pick variants, specify quantity, and submit your contact info.\n"
+            . "• <b>Zero Online Payments</b>: You agree on payment (Cash on Delivery, mobile transfer) directly with the merchant.\n"
+            . "• <b>Track Inquiries</b>: View status anytime under 'My Inquiries'.";
+
+        $replyMarkup = [
+            'inline_keyboard' => [
+                [
+                    [
+                        'text' => '🛍️ Open Marketplace',
+                        'web_app' => ['url' => $appUrl]
+                    ]
+                ]
+            ]
+        ];
+
+        $this->telegramService->sendMessage($chatId, $helpText, $replyMarkup);
     }
 
     protected function handleStartCommand(int|string $chatId, string $text, array $sender): void
