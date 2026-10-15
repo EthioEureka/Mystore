@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Shop;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -37,8 +38,30 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $shop = null;
-        if ($user && $user->isShopOwner()) {
-            $shop = $user->shop;
+        $isImpersonating = false;
+
+        if ($user) {
+            // Check if admin is impersonating/managing a specific shop
+            $impersonateId = $request->session()->get('impersonate_shop_id');
+            if ($user->isAdmin() && $impersonateId) {
+                $shop = Shop::find($impersonateId);
+                $isImpersonating = true;
+            } elseif ($user->shop_id) {
+                $shop = Shop::find($user->shop_id);
+            } elseif ($user->shop) {
+                $shop = $user->shop;
+            }
+        }
+
+        // Gather user permissions for the current shop context
+        $permissions = [];
+        if ($user) {
+            if ($user->isAdmin()) {
+                $permissions = ['*']; // Super-admin wildcard
+            } elseif ($shop) {
+                setPermissionsTeamId($shop->id);
+                $permissions = $user->getAllPermissions()->pluck('name')->toArray();
+            }
         }
 
         return [
@@ -52,6 +75,8 @@ class HandleInertiaRequests extends Middleware
                     'phone' => $user->phone,
                     'telegram_username' => $user->telegram_username,
                     'telegram_user_id' => $user->telegram_user_id,
+                    'permissions' => $permissions,
+                    'is_impersonating' => $isImpersonating,
                 ] : null,
                 'shop' => $shop ? [
                     'id' => $shop->id,
@@ -59,6 +84,7 @@ class HandleInertiaRequests extends Middleware
                     'slug' => $shop->slug,
                     'status' => $shop->status,
                     'logo' => $shop->logo,
+                    'category_id' => $shop->category_id,
                 ] : null,
             ],
             'flash' => [

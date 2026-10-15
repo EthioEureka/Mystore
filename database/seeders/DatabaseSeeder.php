@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             ShopSeeder::class,
             ProductSeeder::class,
             InquirySeeder::class,
+            RoleAndPermissionSeeder::class,
         ]);
     }
 }

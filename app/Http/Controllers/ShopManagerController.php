@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\Shop;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -19,10 +20,33 @@ class ShopManagerController extends Controller
 {
     protected function getShop(Request $request): Shop
     {
-        $shop = $request->user()->shop;
+        $user = $request->user();
+
+        // 1. If Admin is accessing/impersonating a specific shop
+        if ($user->isAdmin() || $user->hasRole('admin')) {
+            $impersonateId = $request->session()->get('impersonate_shop_id');
+            if ($impersonateId) {
+                $shop = Shop::find($impersonateId);
+                if ($shop) {
+                    setPermissionsTeamId($shop->id);
+                    return $shop;
+                }
+            }
+        }
+
+        // 2. Direct tenant staff / user or shop owner
+        $shop = null;
+        if ($user->shop_id) {
+            $shop = Shop::find($user->shop_id);
+        } elseif ($user->shop) {
+            $shop = $user->shop;
+        }
+
         if (!$shop) {
             abort(403, 'No active shop found for your account.');
         }
+
+        setPermissionsTeamId($shop->id);
         return $shop;
     }
 
@@ -492,5 +516,158 @@ class ShopManagerController extends Controller
         $shop->update($validated);
 
         return back()->with('success', 'Shop settings saved successfully.');
+    }
+
+    /**
+     * Shop User Management (Staff List & RBAC)
+     */
+    public function users(Request $request): Response
+    {
+        $shop = $this->getShop($request);
+        $currentUser = $request->user();
+
+        // Check permission unless admin
+        if (!$currentUser->isAdmin() && !$currentUser->hasRole('admin')) {
+            if (!$currentUser->hasPermissionTo('view shop users')) {
+                abort(403, 'You do not have permission to view shop staff.');
+            }
+        }
+
+        setPermissionsTeamId($shop->id);
+
+        $users = User::where('shop_id', $shop->id)
+            ->orWhere('id', $shop->user_id)
+            ->with(['roles' => function ($q) use ($shop) {
+                $q->where('roles.shop_id', $shop->id);
+            }])
+            ->latest()
+            ->get()
+            ->map(function ($u) use ($shop) {
+                $roles = $u->roles->pluck('name')->toArray();
+                return [
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'email' => $u->email,
+                    'phone' => $u->phone,
+                    'is_owner' => $u->id === $shop->user_id,
+                    'is_active' => $u->is_active,
+                    'roles' => $roles,
+                    'primary_role' => $u->id === $shop->user_id ? 'shop_owner' : ($roles[0] ?? 'shop_staff'),
+                    'created_at' => $u->created_at->format('M d, Y'),
+                ];
+            });
+
+        return Inertia::render('Manager/Users/Index', [
+            'shop' => $shop,
+            'users' => $users,
+            'availableRoles' => [
+                ['name' => 'shop_manager', 'label' => 'Shop Manager', 'description' => 'Full access to products, inventory, inquiries, and staff viewing.'],
+                ['name' => 'shop_staff', 'label' => 'Shop Staff / Clerk', 'description' => 'Can manage products, view stock, and respond to customer inquiries.'],
+            ],
+        ]);
+    }
+
+    /**
+     * Add New Staff Member to Shop
+     */
+    public function storeUser(Request $request)
+    {
+        $shop = $this->getShop($request);
+        $currentUser = $request->user();
+
+        if (!$currentUser->isAdmin() && !$currentUser->hasRole('admin')) {
+            if (!$currentUser->hasPermissionTo('create shop users')) {
+                abort(403, 'You do not have permission to add staff members.');
+            }
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email',
+            'phone' => 'nullable|string|max:40',
+            'password' => 'required|string|min:6',
+            'role' => 'required|in:shop_manager,shop_staff',
+        ]);
+
+        $user = User::create([
+            'shop_id' => $shop->id,
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
+            'password' => bcrypt($validated['password']),
+            'role' => 'shop_staff',
+            'is_active' => true,
+        ]);
+
+        setPermissionsTeamId($shop->id);
+        $user->assignRole($validated['role']);
+
+        return back()->with('success', "Staff member {$user->name} added successfully.");
+    }
+
+    /**
+     * Update Staff Member
+     */
+    public function updateUser(Request $request, int $id)
+    {
+        $shop = $this->getShop($request);
+        $currentUser = $request->user();
+
+        if (!$currentUser->isAdmin() && !$currentUser->hasRole('admin')) {
+            if (!$currentUser->hasPermissionTo('edit shop users')) {
+                abort(403, 'You do not have permission to modify staff members.');
+            }
+        }
+
+        $user = User::where('shop_id', $shop->id)->where('id', $id)->firstOrFail();
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:40',
+            'is_active' => 'required|boolean',
+            'password' => 'nullable|string|min:6',
+            'role' => 'required|in:shop_manager,shop_staff',
+        ]);
+
+        $updates = [
+            'name' => $validated['name'],
+            'phone' => $validated['phone'] ?? null,
+            'is_active' => $validated['is_active'],
+        ];
+
+        if (!empty($validated['password'])) {
+            $updates['password'] = bcrypt($validated['password']);
+        }
+
+        $user->update($updates);
+
+        setPermissionsTeamId($shop->id);
+        $user->syncRoles([$validated['role']]);
+
+        return back()->with('success', "Staff member {$user->name} updated.");
+    }
+
+    /**
+     * Remove Staff Member
+     */
+    public function destroyUser(Request $request, int $id)
+    {
+        $shop = $this->getShop($request);
+        $currentUser = $request->user();
+
+        if (!$currentUser->isAdmin() && !$currentUser->hasRole('admin')) {
+            if (!$currentUser->hasPermissionTo('delete shop users')) {
+                abort(403, 'You do not have permission to remove staff members.');
+            }
+        }
+
+        if ($id === $shop->user_id) {
+            return back()->with('error', 'Cannot remove the primary shop owner account.');
+        }
+
+        $user = User::where('shop_id', $shop->id)->where('id', $id)->firstOrFail();
+        $user->delete();
+
+        return back()->with('success', 'Staff member removed from shop.');
     }
 }

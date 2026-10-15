@@ -2,107 +2,70 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Shop;
-use App\Models\User;
+use App\Http\Requests\Auth\LoginRequest;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class AuthController extends Controller
 {
+    /**
+     * Display the customizable login view.
+     */
     public function showLogin(): Response
     {
-        return Inertia::render('Auth/Login');
+        return Inertia::render('Auth/Login', [
+            'status' => session('status'),
+            'canResetPassword' => false,
+        ]);
     }
 
-    public function login(Request $request)
+    /**
+     * Handle an incoming authentication request using Breeze LoginRequest (with rate limiting).
+     */
+    public function login(LoginRequest $request): RedirectResponse
     {
-        $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required|string',
-        ]);
+        $request->authenticate();
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
-            $request->session()->regenerate();
-            $user = Auth::user();
+        $request->session()->regenerate();
+        $user = Auth::user();
 
-            if (!$user->is_active) {
-                Auth::logout();
-                return back()->withErrors(['email' => 'Your account has been deactivated.']);
-            }
-
-            if ($user->isAdmin()) {
-                return redirect()->route('admin.overview');
-            }
-
-            if ($user->isShopOwner()) {
-                return redirect()->route('manager.dashboard');
-            }
-
-            return redirect()->route('customer.home');
+        if (!$user->is_active) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            return back()->withErrors(['email' => 'This account has been deactivated. Please contact support.']);
         }
 
-        return back()->withErrors(['email' => 'Invalid email or password.']);
-    }
-
-    public function showRegister(): Response
-    {
-        return Inertia::render('Auth/Register');
-    }
-
-    public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
-            'password' => 'required|string|min:6|confirmed',
-            'role' => 'required|in:customer,shop_owner',
-            'phone' => 'nullable|string|max:40',
-            'shop_name' => 'required_if:role,shop_owner|nullable|string|max:255',
-        ]);
-
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
-            'phone' => $validated['phone'] ?? null,
-            'is_active' => true,
-        ]);
-
-        if ($user->isShopOwner() && !empty($validated['shop_name'])) {
-            $slug = Str::slug($validated['shop_name']);
-            $baseSlug = $slug;
-            $counter = 1;
-            while (Shop::where('slug', $slug)->exists()) {
-                $slug = "{$baseSlug}-{$counter}";
-                $counter++;
-            }
-
-            Shop::create([
-                'user_id' => $user->id,
-                'name' => $validated['shop_name'],
-                'slug' => $slug,
-                'status' => 'approved', // Auto-approved for easy merchant onboarding in local/demo
-                'public_phone' => $validated['phone'] ?? null,
-            ]);
+        // Set permissions team context if user belongs to a shop
+        if ($user->shop_id) {
+            setPermissionsTeamId($user->shop_id);
+            session(['current_shop_id' => $user->shop_id]);
+        } elseif ($user->shop) {
+            setPermissionsTeamId($user->shop->id);
+            session(['current_shop_id' => $user->shop->id]);
         }
 
-        Auth::login($user);
-
-        if ($user->isShopOwner()) {
-            return redirect()->route('manager.dashboard');
+        if ($user->isAdmin() || $user->hasRole('admin')) {
+            return redirect()->intended(route('admin.overview'));
         }
 
-        return redirect()->route('customer.home');
+        if ($user->isShopOwner() || $user->isStaff() || $user->shop_id || $user->shop) {
+            return redirect()->intended(route('manager.dashboard'));
+        }
+
+        return redirect()->intended(route('customer.home'));
     }
 
-    public function logout(Request $request)
+    /**
+     * Destroy an authenticated session.
+     */
+    public function logout(Request $request): RedirectResponse
     {
-        Auth::logout();
+        Auth::guard('web')->logout();
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

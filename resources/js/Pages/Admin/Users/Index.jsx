@@ -1,6 +1,7 @@
 import React from 'react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import { router } from '@inertiajs/react';
+import { Users, Shield, UserCheck, UserX, Mail, Phone } from 'lucide-react';
 
 export default function AdminUsers({ users }) {
   function toggleUser(userId) {
@@ -8,52 +9,76 @@ export default function AdminUsers({ users }) {
   }
 
   return (
-    <AdminLayout title="Manage Users">
-      <div className="bg-white rounded-3xl border border-[#E6E8EF] shadow-xs overflow-hidden">
+    <AdminLayout
+      title="Platform Users & Security Moderation"
+      subtitle="View all tenant owners, managers, staff, and super administrators"
+    >
+      <div className="bg-white rounded-3xl border border-[#E6E8EF] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="border-b border-[#E6E8EF] bg-gray-50/75 text-[#667085]">
-              <th className="py-3.5 px-5 font-semibold">User</th>
-              <th className="py-3.5 px-5 font-semibold">Role</th>
-              <th className="py-3.5 px-5 font-semibold">Phone</th>
-              <th className="py-3.5 px-5 font-semibold">Telegram</th>
-              <th className="py-3.5 px-5 font-semibold">Status</th>
-              <th className="py-3.5 px-5 font-semibold text-right">Actions</th>
+            <tr className="border-b border-[#E6E8EF] bg-gray-50/75 text-[#6B7280]">
+              <th className="py-4 px-6 font-bold">User</th>
+              <th className="py-4 px-6 font-bold">Role Hierarchy</th>
+              <th className="py-4 px-6 font-bold">Phone Number</th>
+              <th className="py-4 px-6 font-bold">Telegram Account</th>
+              <th className="py-4 px-6 font-bold">Account Status</th>
+              <th className="py-4 px-6 font-bold text-right">Moderation</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {users.data?.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50/50">
-                <td className="py-3.5 px-5">
-                  <div className="font-bold text-[#182033]">{user.name}</div>
-                  <div className="text-[11px] text-[#667085]">{user.email}</div>
+              <tr key={user.id} className="hover:bg-gray-50/60 transition">
+                <td className="py-4 px-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#EEF0FD] text-[#3F51D7] font-bold text-xs flex items-center justify-center shrink-0">
+                      {user.name.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-[#111827] text-xs">{user.name}</div>
+                      <div className="text-[11px] text-[#6B7280]">{user.email}</div>
+                    </div>
+                  </div>
                 </td>
-                <td className="py-3.5 px-5">
-                  <span className="px-2 py-0.5 rounded-full capitalize text-[10px] font-semibold bg-gray-100 text-gray-800">
-                    {user.role.replace(/_/g, ' ')}
-                  </span>
-                </td>
-                <td className="py-3.5 px-5 text-[#667085]">{user.phone || 'N/A'}</td>
-                <td className="py-3.5 px-5 text-[#3F51D7]">
-                  {user.telegram_username ? `@${user.telegram_username}` : '-'}
-                </td>
-                <td className="py-3.5 px-5">
+                <td className="py-4 px-6">
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                      user.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl capitalize text-[10px] font-bold ${
+                      user.role === 'admin'
+                        ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                        : user.role === 'shop_owner'
+                        ? 'bg-blue-50 text-[#3F51D7] border border-blue-200'
+                        : 'bg-gray-100 text-gray-700'
                     }`}
                   >
+                    <Shield className="w-3 h-3" />
+                    <span>{user.role.replace(/_/g, ' ')}</span>
+                  </span>
+                </td>
+                <td className="py-4 px-6 text-[#6B7280] font-medium">{user.phone || 'N/A'}</td>
+                <td className="py-4 px-6 font-medium text-[#3F51D7]">
+                  {user.telegram_username ? `@${user.telegram_username}` : '-'}
+                </td>
+                <td className="py-4 px-6">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      user.is_active
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${user.is_active ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
                     {user.is_active ? 'Active' : 'Suspended'}
                   </span>
                 </td>
-                <td className="py-3.5 px-5 text-right">
+                <td className="py-4 px-6 text-right">
                   <button
                     onClick={() => toggleUser(user.id)}
-                    className={`font-semibold text-xs hover:underline ${
-                      user.is_active ? 'text-red-500' : 'text-emerald-600'
+                    className={`px-3 py-1 rounded-xl font-bold text-xs transition ${
+                      user.is_active
+                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-600'
+                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600'
                     }`}
                   >
-                    {user.is_active ? 'Suspend' : 'Reactivate'}
+                    {user.is_active ? 'Suspend User' : 'Reactivate'}
                   </button>
                 </td>
               </tr>
@@ -64,4 +89,3 @@ export default function AdminUsers({ users }) {
     </AdminLayout>
   );
 }
-

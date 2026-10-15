@@ -35,14 +35,12 @@ Route::post('/inquiries/{referenceNumber}/cancel', [CustomerInquiryController::c
 Route::post('/api/telegram/auth', [TelegramIntegrationController::class, 'authenticate'])->name('telegram.auth');
 Route::post('/telegram/webhook', [TelegramIntegrationController::class, 'webhook'])->name('telegram.webhook');
 
-// --- Authentication (Web / Merchant / Admin) ---
+// --- Authentication (Breeze Standard Secure Login / Logout - No Public Self-Registration) ---
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
-Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-// --- Shop Manager Dashboard (Owner) ---
+// --- Shop Manager Dashboard (Multi-Tenant Shop Owner & Staff RBAC) ---
 Route::middleware(['auth', EnsureRole::class.':shop_owner,admin'])->prefix('manager')->name('manager.')->group(function () {
     Route::get('/', [ShopManagerController::class, 'dashboard'])->name('dashboard');
     
@@ -63,6 +61,12 @@ Route::middleware(['auth', EnsureRole::class.':shop_owner,admin'])->prefix('mana
     Route::get('/inquiries/{id}', [ShopManagerController::class, 'showInquiry'])->name('inquiries.show');
     Route::put('/inquiries/{id}/status', [ShopManagerController::class, 'updateInquiryStatus'])->name('inquiries.status');
 
+    // Shop User Management (Staff RBAC)
+    Route::get('/users', [ShopManagerController::class, 'users'])->name('users.index');
+    Route::post('/users', [ShopManagerController::class, 'storeUser'])->name('users.store');
+    Route::put('/users/{id}', [ShopManagerController::class, 'updateUser'])->name('users.update');
+    Route::delete('/users/{id}', [ShopManagerController::class, 'destroyUser'])->name('users.destroy');
+
     // Settings
     Route::get('/settings', [ShopManagerController::class, 'settings'])->name('settings.index');
     Route::put('/settings', [ShopManagerController::class, 'updateSettings'])->name('settings.update');
@@ -72,15 +76,18 @@ Route::middleware(['auth', EnsureRole::class.':shop_owner,admin'])->prefix('mana
 Route::middleware(['auth', EnsureRole::class.':admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminDashboardController::class, 'overview'])->name('overview');
     
-    // Shops moderation
+    // Shops moderation & Admin Shop Creation
     Route::get('/shops', [AdminDashboardController::class, 'shops'])->name('shops.index');
+    Route::post('/shops', [AdminDashboardController::class, 'storeShop'])->name('shops.store');
+    Route::post('/shops/{id}/impersonate', [AdminDashboardController::class, 'impersonateShop'])->name('shops.impersonate');
+    Route::post('/shops/leave-impersonation', [AdminDashboardController::class, 'leaveImpersonation'])->name('shops.leave-impersonation');
     Route::put('/shops/{id}/status', [AdminDashboardController::class, 'updateShopStatus'])->name('shops.status');
 
     // Categories
     Route::get('/categories', [AdminDashboardController::class, 'categories'])->name('categories.index');
     Route::post('/categories', [AdminDashboardController::class, 'storeCategory'])->name('categories.store');
 
-    // Users
+    // Platform Users
     Route::get('/users', [AdminDashboardController::class, 'users'])->name('users.index');
     Route::post('/users/{id}/toggle-status', [AdminDashboardController::class, 'toggleUserStatus'])->name('users.toggle');
 
